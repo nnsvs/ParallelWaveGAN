@@ -835,9 +835,11 @@ class HnSincNSF(torch_nn.Module):
         upsample_rate=120,
         sample_rate=16000,
         out_lf0_idx=60,
-        out_vuv_idx=61,
         out_lf0_mean=5.953093881972361,
         out_lf0_scale=0.23435173188961034,
+        out_vuv_idx=61,
+        out_vuv_mean=0.8027627522670242,
+        out_vuv_scale=0.39791295007789834,
         sine_amp=1.0,
         noise_std=0.003,
         hidden_dim=64,
@@ -846,15 +848,19 @@ class HnSincNSF(torch_nn.Module):
         cnn_num_in_block=10,
         harmonic_num=7,
         sinc_order=31,
+        vuv_threshold=0.3,
     ):
         super(HnSincNSF, self).__init__()
 
         self.in_dim = cin_channels
         self.out_dim = out_channels
         self.out_lf0_idx = out_lf0_idx
-        self.out_vuv_idx = out_vuv_idx
         self.out_lf0_mean = out_lf0_mean
         self.out_lf0_scale = out_lf0_scale
+        self.out_vuv_idx = out_vuv_idx
+        self.out_vuv_mean = out_vuv_mean
+        self.out_vuv_scale = out_vuv_scale
+        self.vuv_threshold = vuv_threshold
 
         # configurations
         # amplitude of sine waveform (for each harmonic)
@@ -878,7 +884,7 @@ class HnSincNSF(torch_nn.Module):
         # number of harmonic overtones in source
         self.harmonic_num = harmonic_num
         # order of sinc-windowed-FIR-filter
-        self.sinc_order = 31
+        self.sinc_order = sinc_order
 
         # the three modules
         self.m_cond = CondModuleHnSincNSF(
@@ -912,11 +918,10 @@ class HnSincNSF(torch_nn.Module):
             x[:, :, self.out_lf0_idx].unsqueeze(-1) * self.out_lf0_scale
             + self.out_lf0_mean
         )
-        vuv = x[:, :, self.out_vuv_idx].unsqueeze(-1)
+        vuv = x[:, :, self.out_vuv_idx].unsqueeze(-1) * self.out_vuv_scale + self.out_vuv_mean
 
         f0 = torch.exp(lf0)
-        # NOTE: vuv is normalized to N(0, 1)
-        f0[vuv < 0] = 0
+        f0[vuv < self.vuv_threshold] = 0
 
         # condition module
         # feature-to-filter-block, f0-up-sampled, cut-off-f-for-sinc,
