@@ -610,6 +610,7 @@ class CondModuleHnSincNSF(torch_nn.Module):
         blstm_s=64,
         cnn_kernel_s=3,
         voiced_threshold=0,
+        out_lf0_idx=60,
     ):
         super(CondModuleHnSincNSF, self).__init__()
 
@@ -621,6 +622,7 @@ class CondModuleHnSincNSF(torch_nn.Module):
         self.cnn_kernel_s = cnn_kernel_s
         self.cut_f_smooth = up_sample * 4
         self.voiced_threshold = voiced_threshold
+        self.out_lf0_idx = out_lf0_idx
 
         # the blstm layer
         self.l_blstm = BLSTMLayer(input_dim, self.blstm_s)
@@ -668,7 +670,7 @@ class CondModuleHnSincNSF(torch_nn.Module):
         context = torch.cat(
             (
                 tmp[:, :, 0 : self.output_dim - 1],
-                self.l_upsamp_f0_hi(feature[:, :, -1:]),
+                self.l_upsamp_f0_hi(feature[:, :, self.out_lf0_idx:self.out_lf0_idx+1]),
             ),
             dim=2,
         )
@@ -892,6 +894,7 @@ class HnSincNSF(torch_nn.Module):
             self.hidden_dim,
             self.upsamp_rate,
             cnn_kernel_s=self.cnn_kernel_s,
+            out_lf0_idx=out_lf0_idx,
         )
 
         self.m_source = SourceModuleHnNSF(
