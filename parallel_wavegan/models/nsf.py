@@ -872,7 +872,7 @@ class HnSincNSF(torch_nn.Module):
         out_vuv_idx=61,
         out_vuv_mean=0.8027627522670242,
         out_vuv_scale=0.39791295007789834,
-        sine_amp=1.0,
+        sine_amp=0.1,
         noise_std=0.003,
         hidden_dim=64,
         cnn_kernel_s=3,
