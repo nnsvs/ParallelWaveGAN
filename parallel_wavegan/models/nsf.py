@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.nn as torch_nn
 import torch.nn.functional as torch_nn_func
+from parallel_wavegan.layers import upsample
 
 
 class BLSTMLayer(torch_nn.Module):
@@ -611,11 +612,13 @@ class CondModuleHnSincNSF(torch_nn.Module):
         cnn_kernel_s=3,
         voiced_threshold=0,
         out_lf0_idx=60,
+        upsample_net="ConvInUpsampleNetwork",
+        upsample_params={"upsample_scales": [2, 3, 4, 10]},
     ):
         super(CondModuleHnSincNSF, self).__init__()
 
         # input feature dimension
-        self.in_dim = input_dim
+        self.input_dim = input_dim
         self.output_dim = output_dim
         self.up_sample = up_sample
         self.blstm_s = blstm_s
@@ -623,16 +626,26 @@ class CondModuleHnSincNSF(torch_nn.Module):
         self.cut_f_smooth = up_sample * 4
         self.voiced_threshold = voiced_threshold
         self.out_lf0_idx = out_lf0_idx
+        self.aux_context_window = upsample_params.get("aux_context_window", 0)
 
-        # the blstm layer
-        self.l_blstm = BLSTMLayer(input_dim, self.blstm_s)
+        # Use PWG style upsampling
+        if upsample_net is not None:
+            self.pwg_style_upsample = True
+            self.upsample_net = getattr(upsample, upsample_net)(**upsample_params)
+            l_conv1d_in_dim = input_dim
+        # Original NSF-style upsampling
+        else:
+            self.pwg_style_upsample = False
+            self.l_blstm = BLSTMLayer(input_dim, self.blstm_s)
+            l_conv1d_in_dim = self.blstm_s
+            # Upsampling layer for hidden features
+            self.l_upsamp = UpSampleLayer(self.output_dim, self.up_sample, True)
 
         # the CNN layer (+1 dim for cut_off_frequence of sinc filter)
         self.l_conv1d = Conv1dKeepLength(
-            self.blstm_s, self.output_dim, dilation_s=1, kernel_s=self.cnn_kernel_s
+            l_conv1d_in_dim, self.output_dim, dilation_s=1, kernel_s=self.cnn_kernel_s
         )
-        # Upsampling layer for hidden features
-        self.l_upsamp = UpSampleLayer(self.output_dim, self.up_sample, True)
+
         # separate layer for up-sampling normalized F0 values
         self.l_upsamp_f0_hi = UpSampleLayer(1, self.up_sample, True)
 
@@ -664,13 +677,24 @@ class CondModuleHnSincNSF(torch_nn.Module):
         spec: (batchsize, length, self.output_dim), at wave-level
         f0: (batchsize, length, 1), at wave-level
         """
-        tmp = self.l_upsamp(self.l_conv1d(self.l_blstm(feature)))
+        if self.pwg_style_upsample:
+            tmp = self.l_conv1d(
+                self.upsample_net(feature.transpose(1, 2)).transpose(1, 2)
+            )
+        else:
+            tmp = self.l_upsamp(self.l_conv1d(self.l_blstm(feature)))
 
         # concatenat normed F0 with hidden spectral features
+        up_norm_f0 = self.l_upsamp_f0_hi(
+            feature[:, :, self.out_lf0_idx : self.out_lf0_idx + 1]
+        )
+        if self.aux_context_window > 0:
+            w = self.aux_context_window * self.up_sample
+            up_norm_f0 = up_norm_f0[:, w:-w, :]
         context = torch.cat(
             (
                 tmp[:, :, 0 : self.output_dim - 1],
-                self.l_upsamp_f0_hi(feature[:, :, self.out_lf0_idx:self.out_lf0_idx+1]),
+                up_norm_f0,
             ),
             dim=2,
         )
@@ -851,6 +875,9 @@ class HnSincNSF(torch_nn.Module):
         harmonic_num=7,
         sinc_order=31,
         vuv_threshold=0.3,
+        aux_context_window=0,
+        upsample_net=None,
+        upsample_params={"upsample_scales": [2, 3, 4, 10]},
     ):
         super(HnSincNSF, self).__init__()
 
@@ -863,6 +890,7 @@ class HnSincNSF(torch_nn.Module):
         self.out_vuv_mean = out_vuv_mean
         self.out_vuv_scale = out_vuv_scale
         self.vuv_threshold = vuv_threshold
+        self.aux_context_window = aux_context_window
 
         # configurations
         # amplitude of sine waveform (for each harmonic)
@@ -888,6 +916,13 @@ class HnSincNSF(torch_nn.Module):
         # order of sinc-windowed-FIR-filter
         self.sinc_order = sinc_order
 
+        # Upsampling network configuration
+        # NOTE: NSF-style upmpsaling used if `upsample_net` is None.
+        # otherwise PWG-style upsampling is used.
+        upsample_params.update(
+            {"aux_channels": self.in_dim, "aux_context_window": aux_context_window}
+        )
+
         # the three modules
         self.m_cond = CondModuleHnSincNSF(
             self.in_dim,
@@ -895,6 +930,8 @@ class HnSincNSF(torch_nn.Module):
             self.upsamp_rate,
             cnn_kernel_s=self.cnn_kernel_s,
             out_lf0_idx=out_lf0_idx,
+            upsample_net=upsample_net,
+            upsample_params=upsample_params,
         )
 
         self.m_source = SourceModuleHnNSF(
@@ -921,7 +958,14 @@ class HnSincNSF(torch_nn.Module):
             x[:, :, self.out_lf0_idx].unsqueeze(-1) * self.out_lf0_scale
             + self.out_lf0_mean
         )
-        vuv = x[:, :, self.out_vuv_idx].unsqueeze(-1) * self.out_vuv_scale + self.out_vuv_mean
+        vuv = (
+            x[:, :, self.out_vuv_idx].unsqueeze(-1) * self.out_vuv_scale
+            + self.out_vuv_mean
+        )
+
+        if self.aux_context_window > 0:
+            lf0 = lf0[:, self.aux_context_window : -self.aux_context_window]
+            vuv = vuv[:, self.aux_context_window : -self.aux_context_window]
 
         f0 = torch.exp(lf0)
         f0[vuv < self.vuv_threshold] = 0
