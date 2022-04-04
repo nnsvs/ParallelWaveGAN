@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.nn as torch_nn
 import torch.nn.functional as torch_nn_func
+
 from parallel_wavegan.layers import upsample
 
 
@@ -614,6 +615,7 @@ class CondModuleHnSincNSF(torch_nn.Module):
         out_lf0_idx=60,
         upsample_net="ConvInUpsampleNetwork",
         upsample_params={"upsample_scales": [2, 3, 4, 10]},
+        concat_norm_f0=True,
     ):
         super(CondModuleHnSincNSF, self).__init__()
 
@@ -627,6 +629,7 @@ class CondModuleHnSincNSF(torch_nn.Module):
         self.voiced_threshold = voiced_threshold
         self.out_lf0_idx = out_lf0_idx
         self.aux_context_window = upsample_params.get("aux_context_window", 0)
+        self.concat_norm_f0 = concat_norm_f0
 
         # Use PWG style upsampling
         if upsample_net is not None:
@@ -685,19 +688,22 @@ class CondModuleHnSincNSF(torch_nn.Module):
             tmp = self.l_upsamp(self.l_conv1d(self.l_blstm(feature)))
 
         # concatenat normed F0 with hidden spectral features
-        up_norm_f0 = self.l_upsamp_f0_hi(
-            feature[:, :, self.out_lf0_idx : self.out_lf0_idx + 1]
-        )
-        if self.aux_context_window > 0:
-            w = self.aux_context_window * self.up_sample
-            up_norm_f0 = up_norm_f0[:, w:-w, :]
-        context = torch.cat(
-            (
-                tmp[:, :, 0 : self.output_dim - 1],
-                up_norm_f0,
-            ),
-            dim=2,
-        )
+        if self.concat_norm_f0:
+            up_norm_f0 = self.l_upsamp_f0_hi(
+                feature[:, :, self.out_lf0_idx : self.out_lf0_idx + 1]
+            )
+            if self.aux_context_window > 0:
+                w = self.aux_context_window * self.up_sample
+                up_norm_f0 = up_norm_f0[:, w:-w, :]
+            context = torch.cat(
+                (
+                    tmp[:, :, 0 : self.output_dim - 1],
+                    up_norm_f0,
+                ),
+                dim=2,
+            )
+        else:
+            context = tmp
 
         # hidden feature for cut-off frequency
         hidden_cut_f = tmp[:, :, self.output_dim - 1 :]
@@ -878,6 +884,7 @@ class HnSincNSF(torch_nn.Module):
         aux_context_window=0,
         upsample_net=None,
         upsample_params={"upsample_scales": [2, 3, 4, 10]},
+        concat_norm_f0=True,
     ):
         super(HnSincNSF, self).__init__()
 
@@ -891,6 +898,7 @@ class HnSincNSF(torch_nn.Module):
         self.out_vuv_scale = out_vuv_scale
         self.vuv_threshold = vuv_threshold
         self.aux_context_window = aux_context_window
+        self.concat_norm_f0 = concat_norm_f0
 
         # configurations
         # amplitude of sine waveform (for each harmonic)
@@ -932,6 +940,7 @@ class HnSincNSF(torch_nn.Module):
             out_lf0_idx=out_lf0_idx,
             upsample_net=upsample_net,
             upsample_params=upsample_params,
+            concat_norm_f0=concat_norm_f0,
         )
 
         self.m_source = SourceModuleHnNSF(
