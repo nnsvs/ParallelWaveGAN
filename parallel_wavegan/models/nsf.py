@@ -898,7 +898,6 @@ class HnSincNSF(torch_nn.Module):
         self.out_vuv_scale = out_vuv_scale
         self.vuv_threshold = vuv_threshold
         self.aux_context_window = aux_context_window
-        self.concat_norm_f0 = concat_norm_f0
 
         # configurations
         # amplitude of sine waveform (for each harmonic)
