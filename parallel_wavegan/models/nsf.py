@@ -613,8 +613,8 @@ class CondModuleHnSincNSF(torch_nn.Module):
         cnn_kernel_s=3,
         voiced_threshold=0,
         out_lf0_idx=60,
-        upsample_net="ConvInUpsampleNetwork",
-        upsample_params={"upsample_scales": [2, 3, 4, 10]},
+        upsample_net=None,
+        upsample_params={},
         concat_norm_f0=True,
     ):
         super(CondModuleHnSincNSF, self).__init__()
@@ -883,7 +883,7 @@ class HnSincNSF(torch_nn.Module):
         vuv_threshold=0.3,
         aux_context_window=0,
         upsample_net=None,
-        upsample_params={"upsample_scales": [2, 3, 4, 10]},
+        upsample_params=None,
         concat_norm_f0=True,
     ):
         super(HnSincNSF, self).__init__()
@@ -926,9 +926,12 @@ class HnSincNSF(torch_nn.Module):
         # Upsampling network configuration
         # NOTE: NSF-style upmpsaling used if `upsample_net` is None.
         # otherwise PWG-style upsampling is used.
-        upsample_params.update(
-            {"aux_channels": self.in_dim, "aux_context_window": aux_context_window}
-        )
+        if upsample_params is not None:
+            upsample_params.update(
+                {"aux_channels": self.in_dim, "aux_context_window": aux_context_window}
+            )
+        else:
+            upsample_params = {}
 
         # the three modules
         self.m_cond = CondModuleHnSincNSF(
