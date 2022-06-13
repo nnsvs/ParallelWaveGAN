@@ -11,9 +11,9 @@ from distutils.version import LooseVersion
 from setuptools import find_packages
 from setuptools import setup
 
-if LooseVersion(sys.version) < LooseVersion("3.6"):
+if LooseVersion(sys.version) < LooseVersion("3.7"):
     raise RuntimeError(
-        "parallel-wavegan requires Python>=3.6, "
+        "parallel-wavegan requires Python>=3.7, "
         "but your Python is {}".format(sys.version)
     )
 if LooseVersion(pip.__version__) < LooseVersion("19"):
@@ -37,6 +37,8 @@ requirements = {
         "yq>=2.10.0",
         "gdown",
         "filelock",
+        # https://github.com/kan-bayashi/ParallelWaveGAN/runs/6646851174?check_suite_focus=true#step:6:294
+        "protobuf<=3.20.1",
     ],
     "setup": [
         "numpy",
@@ -69,7 +71,7 @@ extras_require = {
 dirname = os.path.dirname(__file__)
 setup(
     name="parallel_wavegan",
-    version="0.5.4",
+    version="0.5.5",
     url="http://github.com/kan-bayashi/ParallelWaveGAN",
     author="Tomoki Hayashi",
     author_email="hayashi.tomoki@g.sp.m.is.nagoya-u.ac.jp",
@@ -84,7 +86,6 @@ setup(
     extras_require=extras_require,
     entry_points=entry_points,
     classifiers=[
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",

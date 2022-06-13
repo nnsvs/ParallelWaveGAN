@@ -597,6 +597,7 @@ class Collater(object):
         c_batch = [c[start:end] for c, start, end in zip(cs, c_starts, c_ends)]
 
         # convert each batch to tensor, asuume that each item in batch has the same length
+        y_batch, c_batch = np.array(y_batch), np.array(c_batch)
         y_batch = torch.tensor(y_batch, dtype=torch.float).unsqueeze(1)  # (B, 1, T)
         c_batch = torch.tensor(c_batch, dtype=torch.float).transpose(2, 1)  # (B, C, T')
 
@@ -628,21 +629,27 @@ class Collater(object):
 def main():
     """Run training process."""
     parser = argparse.ArgumentParser(
-        description="Train Parallel WaveGAN (See detail in parallel_wavegan/bin/train.py)."
+        description=(
+            "Train Parallel WaveGAN (See detail in parallel_wavegan/bin/train.py)."
+        )
     )
     parser.add_argument(
         "--train-wav-scp",
         default=None,
         type=str,
-        help="kaldi-style wav.scp file for training. "
-        "you need to specify either train-*-scp or train-dumpdir.",
+        help=(
+            "kaldi-style wav.scp file for training. "
+            "you need to specify either train-*-scp or train-dumpdir."
+        ),
     )
     parser.add_argument(
         "--train-feats-scp",
         default=None,
         type=str,
-        help="kaldi-style feats.scp file for training. "
-        "you need to specify either train-*-scp or train-dumpdir.",
+        help=(
+            "kaldi-style feats.scp file for training. "
+            "you need to specify either train-*-scp or train-dumpdir."
+        ),
     )
     parser.add_argument(
         "--train-segments",
@@ -654,22 +661,28 @@ def main():
         "--train-dumpdir",
         default=None,
         type=str,
-        help="directory including training data. "
-        "you need to specify either train-*-scp or train-dumpdir.",
+        help=(
+            "directory including training data. "
+            "you need to specify either train-*-scp or train-dumpdir."
+        ),
     )
     parser.add_argument(
         "--dev-wav-scp",
         default=None,
         type=str,
-        help="kaldi-style wav.scp file for validation. "
-        "you need to specify either dev-*-scp or dev-dumpdir.",
+        help=(
+            "kaldi-style wav.scp file for validation. "
+            "you need to specify either dev-*-scp or dev-dumpdir."
+        ),
     )
     parser.add_argument(
         "--dev-feats-scp",
         default=None,
         type=str,
-        help="kaldi-style feats.scp file for vaidation. "
-        "you need to specify either dev-*-scp or dev-dumpdir.",
+        help=(
+            "kaldi-style feats.scp file for vaidation. "
+            "you need to specify either dev-*-scp or dev-dumpdir."
+        ),
     )
     parser.add_argument(
         "--dev-segments",
@@ -681,8 +694,10 @@ def main():
         "--dev-dumpdir",
         default=None,
         type=str,
-        help="directory including development data. "
-        "you need to specify either dev-*-scp or dev-dumpdir.",
+        help=(
+            "directory including development data. "
+            "you need to specify either dev-*-scp or dev-dumpdir."
+        ),
     )
     parser.add_argument(
         "--outdir",
