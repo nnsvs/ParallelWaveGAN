@@ -153,10 +153,22 @@ class Trainer(object):
                 state_dict["model"]["discriminator"]
             )
         else:
-            self.model["generator"].load_state_dict(state_dict["model"]["generator"])
-            self.model["discriminator"].load_state_dict(
-                state_dict["model"]["discriminator"]
-            )
+            # NOTE: DiffSinger's impl
+            if "model" not in state_dict:
+                self.model["generator"].load_state_dict(
+                    state_dict["state_dict"]["model_gen"]
+                )
+                # TODO
+                # self.model["discriminator"].load_state_dict(
+                #     state_dict["state_dict"]["model_disc"]
+                # )
+            else:
+                self.model["generator"].load_state_dict(
+                    state_dict["model"]["generator"]
+                )
+                self.model["discriminator"].load_state_dict(
+                    state_dict["model"]["discriminator"]
+                )
         if not load_only_params:
             self.steps = state_dict["steps"]
             self.epochs = state_dict["epochs"]
