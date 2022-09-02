@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torch.nn import Conv1d, ConvTranspose1d
 from torch.nn.utils import remove_weight_norm, weight_norm
 
-from .nsf import SourceModuleHnNSF, UpSampleLayer
+from .nsf import SourceModuleHnNSF
 
 LRELU_SLOPE = 0.1
 
@@ -206,7 +206,7 @@ class HnSincHifiGanGenerator(torch.nn.Module):
 
         self.harmonic_num = 8
         # Upsampling for F0: don't smooth up-sampled F0
-        self.l_upsamp_F0 = UpSampleLayer(1, np.prod(upsample_rates), False)
+        self.f0_upsamp = torch.nn.Upsample(scale_factor=np.prod(upsample_rates))
         self.m_source = SourceModuleHnNSF(
             sampling_rate=sample_rate, harmonic_num=self.harmonic_num
         )
@@ -270,7 +270,7 @@ class HnSincHifiGanGenerator(torch.nn.Module):
         f0[vuv < self.vuv_threshold] = 0
 
         # harmonic-source signal, noise-source signal, uv flag
-        f0 = self.l_upsamp_F0(f0)
+        f0 = self.f0_upsamp(f0.permute(0, 2, 1)).permute(0, 2, 1)
         har_source, _, _ = self.m_source(f0)
         har_source = har_source.transpose(1, 2)
 
