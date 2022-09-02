@@ -190,6 +190,7 @@ class HnSincHifiGanGenerator(torch.nn.Module):
         upsample_kernel_sizes=[16, 16, 4, 4],
         upsample_initial_channel=512,
         resblock_dilation_sizes=[[1, 3, 5], [1, 3, 5], [1, 3, 5]],
+        melf0vuv=False,
     ):
         super(HnSincHifiGanGenerator, self).__init__()
         self.out_lf0_idx = out_lf0_idx
@@ -200,6 +201,7 @@ class HnSincHifiGanGenerator(torch.nn.Module):
         self.out_vuv_scale = out_vuv_scale
         self.vuv_threshold = vuv_threshold
         self.aux_context_window = aux_context_window
+        self.melf0vuv = melf0vuv
 
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
@@ -250,27 +252,36 @@ class HnSincHifiGanGenerator(torch.nn.Module):
         self.ups.apply(init_weights)
         self.conv_post.apply(init_weights)
 
-    def forward(self, x):
+    def forward(self, x, f0=None):
         # (B, C, T) -> (B, T, C)
         x = x.transpose(1, 2)
-        lf0 = (
-            x[:, :, self.out_lf0_idx].unsqueeze(-1) * self.out_lf0_scale
-            + self.out_lf0_mean
-        )
-        vuv = (
-            x[:, :, self.out_vuv_idx].unsqueeze(-1) * self.out_vuv_scale
-            + self.out_vuv_mean
-        )
+        if f0 is not None:
+            # NOTE: DiffSinger's case
+            f0 = self.f0_upsamp(f0[:, None]).transpose(1, 2)
+        else:
+            lf0 = (
+                x[:, :, self.out_lf0_idx].unsqueeze(-1) * self.out_lf0_scale
+                + self.out_lf0_mean
+            )
+            vuv = (
+                x[:, :, self.out_vuv_idx].unsqueeze(-1) * self.out_vuv_scale
+                + self.out_vuv_mean
+            )
 
-        if self.aux_context_window > 0:
-            lf0 = lf0[:, self.aux_context_window : -self.aux_context_window]
-            vuv = vuv[:, self.aux_context_window : -self.aux_context_window]
+            if self.aux_context_window > 0:
+                lf0 = lf0[:, self.aux_context_window : -self.aux_context_window]
+                vuv = vuv[:, self.aux_context_window : -self.aux_context_window]
 
-        f0 = torch.exp(lf0)
-        f0[vuv < self.vuv_threshold] = 0
+            f0 = torch.exp(lf0)
+            f0[vuv < self.vuv_threshold] = 0
 
-        # harmonic-source signal, noise-source signal, uv flag
-        f0 = self.f0_upsamp(f0.permute(0, 2, 1)).permute(0, 2, 1)
+            # harmonic-source signal, noise-source signal, uv flag
+            f0 = self.f0_upsamp(f0.permute(0, 2, 1)).permute(0, 2, 1)
+
+            # Drop lf0 and vuv
+            if self.melf0vuv:
+                x = x[:, :, : self.out_lf0_idx]
+
         har_source, _, _ = self.m_source(f0)
         har_source = har_source.transpose(1, 2)
 
