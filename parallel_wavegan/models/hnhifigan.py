@@ -190,7 +190,7 @@ class HnSincHifiGanGenerator(torch.nn.Module):
         upsample_kernel_sizes=[16, 16, 4, 4],
         upsample_initial_channel=512,
         resblock_dilation_sizes=[[1, 3, 5], [1, 3, 5], [1, 3, 5]],
-        melf0vuv=False,
+        drop_melf0vuv=True,
     ):
         super(HnSincHifiGanGenerator, self).__init__()
         self.out_lf0_idx = out_lf0_idx
@@ -201,7 +201,8 @@ class HnSincHifiGanGenerator(torch.nn.Module):
         self.out_vuv_scale = out_vuv_scale
         self.vuv_threshold = vuv_threshold
         self.aux_context_window = aux_context_window
-        self.melf0vuv = melf0vuv
+        # NOTE: make sure to set this true to be compatibile with DiffSinger's impl.
+        self.drop_melf0vuv = drop_melf0vuv
 
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
@@ -279,7 +280,7 @@ class HnSincHifiGanGenerator(torch.nn.Module):
             f0 = self.f0_upsamp(f0.permute(0, 2, 1)).permute(0, 2, 1)
 
             # Drop lf0 and vuv
-            if self.melf0vuv:
+            if self.drop_melf0vuv:
                 x = x[:, :, : self.out_lf0_idx]
 
         har_source, _, _ = self.m_source(f0)
