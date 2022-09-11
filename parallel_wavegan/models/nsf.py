@@ -696,11 +696,7 @@ class CondModuleHnSincNSF(torch_nn.Module):
                 w = self.aux_context_window * self.up_sample
                 up_norm_f0 = up_norm_f0[:, w:-w, :]
             context = torch.cat(
-                (
-                    tmp[:, :, 0 : self.output_dim - 1],
-                    up_norm_f0,
-                ),
-                dim=2,
+                (tmp[:, :, 0 : self.output_dim - 1], up_norm_f0,), dim=2,
             )
         else:
             context = tmp
