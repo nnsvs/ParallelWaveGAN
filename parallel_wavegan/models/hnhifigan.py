@@ -306,6 +306,14 @@ class HnSincHifiGanGenerator(torch.nn.Module):
 
         return x
 
+    def inference(self, c=None, x=None, normalize_before=False):
+        if not isinstance(c, torch.Tensor):
+            c = torch.tensor(c, dtype=torch.float).to(next(self.parameters()).device)
+        if normalize_before:
+            assert False
+        c = self.forward(c.transpose(1, 0).unsqueeze(0))
+        return c.squeeze(0).transpose(1, 0)
+
     def remove_weight_norm(self):
         for l in self.ups:
             remove_weight_norm(l)
